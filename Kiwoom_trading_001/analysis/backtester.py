@@ -7,9 +7,9 @@ from typing import Dict, Any, List, Optional, Tuple, Set, Callable
 import pandas as pd
 import numpy as np
 
-from ..utils.logger import logger
-from ..utils.decorators import async_measure_time
-from ..analysis.stock_analyzer import StockAnalyzer
+from utils.logger import logger
+from utils.decorators import async_measure_time
+from analysis.stock_analyzer import StockAnalyzer
 
 
 class Backtester:

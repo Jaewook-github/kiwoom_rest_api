@@ -5,7 +5,7 @@ import time
 import functools
 import asyncio
 from typing import Callable, Any, TypeVar, cast
-from logger import logger
+from utils.logger import logger
 
 # 제네릭 타입 정의
 F = TypeVar('F', bound=Callable[..., Any])

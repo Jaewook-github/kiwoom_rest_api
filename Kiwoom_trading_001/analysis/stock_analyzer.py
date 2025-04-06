@@ -6,9 +6,9 @@ from typing import Dict, Any, List, Optional, Tuple, Set
 import pandas as pd
 import numpy as np
 
-from ..utils.logger import logger
-from ..utils.decorators import async_measure_time
-from ..api.rest_api import KiwoomRestAPI
+from utils.logger import logger
+from utils.decorators import async_measure_time
+from api.rest_api import KiwoomRestAPI
 
 
 class StockAnalyzer:

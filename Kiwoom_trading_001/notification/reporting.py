@@ -8,10 +8,10 @@ from typing import Dict, Any, List, Optional, Union
 import pandas as pd
 import asyncio
 
-from ..config import config
-from ..utils.logger import logger
-from ..utils.helpers import get_current_time_str, save_json_data, load_json_data, format_money, format_percentage
-from ..notification.alert_system import AlertSystem
+from config import config
+from utils.logger import logger
+from utils.helpers import get_current_time_str, save_json_data, load_json_data, format_money, format_percentage
+from notification.alert_system import AlertSystem
 
 
 class ReportGenerator:

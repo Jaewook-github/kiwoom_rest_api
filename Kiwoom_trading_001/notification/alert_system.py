@@ -10,9 +10,9 @@ from typing import List, Optional, Dict, Any, Union
 import json
 import requests
 
-from ..config import config
-from ..utils.logger import logger
-from ..utils.helpers import get_current_time_str
+from config import config
+from utils.logger import logger
+from utils.helpers import get_current_time_str
 
 
 class AlertSystem:

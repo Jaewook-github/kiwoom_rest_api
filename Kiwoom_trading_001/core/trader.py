@@ -7,15 +7,15 @@ from typing import Dict, Any, List, Optional, Set, Tuple
 import os
 import json
 
-from Kiwoom_trading_001.config import config
-from Kiwoom_trading_001.utils.logger import logger
-from Kiwoom_trading_001.utils.helpers import get_current_time_str, save_json_data, load_json_data, calculate_portfolio_stats, \
+from config import config
+from utils.logger import logger
+from utils.helpers import get_current_time_str, save_json_data, load_json_data, calculate_portfolio_stats, \
     calculate_wait_seconds
-from Kiwoom_trading_001.api.rest_api import KiwoomRestAPI
-from Kiwoom_trading_001.api.websocket_api import KiwoomWebSocketAPI
-from Kiwoom_trading_001.core.order_manager import OrderManager
-from Kiwoom_trading_001.core.condition_manager import ConditionManager
-from Kiwoom_trading_001.strategies.base_strategy import BaseStrategy
+from api.rest_api import KiwoomRestAPI
+from api.websocket_api import KiwoomWebSocketAPI
+from core.order_manager import OrderManager
+from core.condition_manager import ConditionManager
+from strategies.base_strategy import BaseStrategy
 
 
 class KiwoomAutoTrader:

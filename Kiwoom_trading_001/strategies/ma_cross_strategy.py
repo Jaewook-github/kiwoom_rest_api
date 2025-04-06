@@ -4,9 +4,9 @@
 from typing import Dict, Any, List, Optional, Tuple
 import asyncio
 
-from ..utils.logger import logger
-from ..strategies.base_strategy import BaseStrategy
-from ..api.rest_api import KiwoomRestAPI
+from utils.logger import logger
+from strategies.base_strategy import BaseStrategy
+from api.rest_api import KiwoomRestAPI
 
 
 class MACrossStrategy(BaseStrategy):

@@ -1,9 +1,9 @@
 """
 분석 패키지
 """
-from stock_analyzer import StockAnalyzer
-from backtester import Backtester
-from performance_tracker import PerformanceTracker
+from analysis.stock_analyzer import StockAnalyzer
+from analysis.backtester import Backtester
+from analysis.performance_tracker import PerformanceTracker
 
 __all__ = [
     'StockAnalyzer',

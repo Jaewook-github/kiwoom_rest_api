@@ -7,9 +7,9 @@ from typing import Dict, Any, Optional, List, Union
 import requests
 import datetime
 
-from ..config import config
-from ..utils.logger import logger
-from ..utils.decorators import async_retry, async_measure_time
+from config import config
+from utils.logger import logger
+from utils.decorators import async_retry, async_measure_time
 
 class KiwoomRestAPI:
     """키움증권 REST API 클래스"""

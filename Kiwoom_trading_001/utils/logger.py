@@ -7,7 +7,7 @@ from logging.handlers import RotatingFileHandler
 from datetime import datetime
 import sys
 
-from ..config import config
+from config import config
 
 
 class CustomFormatter(logging.Formatter):

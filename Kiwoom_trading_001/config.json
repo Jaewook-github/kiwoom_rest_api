@@ -16,6 +16,9 @@
         "request_timeout": 30,
         "retry_count": 3
     },
+    "auth": {
+        "access_token": "YOUR_ACTUAL_TOKEN_HERE"
+    },
     "trading": {
         "max_budget_per_stock": 500000,
         "max_stocks": 5,

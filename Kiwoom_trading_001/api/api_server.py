@@ -7,8 +7,8 @@ from typing import Dict, Any, Optional
 from aiohttp import web
 import os
 
-from ..config import config
-from ..utils.logger import logger
+from config import config
+from utils.logger import logger
 
 
 class TradingAPIServer:

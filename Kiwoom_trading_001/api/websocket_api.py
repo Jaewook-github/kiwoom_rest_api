@@ -7,10 +7,10 @@ from typing import Dict, Any, Optional, List, Callable, Coroutine
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from ..config import config
-from ..utils.logger import logger
-from ..utils.decorators import async_measure_time
-from ..utils.helpers import execute_with_timeout
+from config import config
+from utils.logger import logger
+from utils.decorators import async_measure_time
+from utils.helpers import execute_with_timeout
 
 
 class KiwoomWebSocketAPI:

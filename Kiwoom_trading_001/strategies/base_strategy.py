@@ -4,8 +4,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional, Tuple
 
-from ..config import config
-from ..utils.logger import logger
+from config import config
+from utils.logger import logger
 
 
 class BaseStrategy(ABC):

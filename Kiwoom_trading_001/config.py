@@ -28,6 +28,11 @@ DEFAULT_CONFIG = {
         "retry_count": 3,
     },
 
+    # 인증 정보 추가
+    "auth": {
+        "access_token": "",  # 기본값은 빈 문자열
+    },
+
     # 거래 설정
     "trading": {
         "max_budget_per_stock": 500000,  # 종목당 최대 매수 금액

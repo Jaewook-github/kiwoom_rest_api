@@ -3,8 +3,8 @@
 """
 from typing import Dict, Any, List, Optional, Tuple, Set
 
-from ..utils.logger import logger
-from ..strategies.base_strategy import BaseStrategy
+from utils.logger import logger
+from strategies.base_strategy import BaseStrategy
 
 
 class ConditionStrategy(BaseStrategy):
