@@ -1,0 +1,51 @@
+{
+    "system": {
+        "log_level": "INFO",
+        "log_file": "auto_trading.log",
+        "data_dir": "./trading_data"
+    },
+    "api": {
+        "real_server": {
+            "rest_host": "https://api.kiwoom.com",
+            "ws_host": "wss://api.kiwoom.com:10000/api/dostk/websocket"
+        },
+        "mock_server": {
+            "rest_host": "https://mockapi.kiwoom.com",
+            "ws_host": "wss://mockapi.kiwoom.com:10000/api/dostk/websocket"
+        },
+        "request_timeout": 30,
+        "retry_count": 3
+    },
+    "trading": {
+        "max_budget_per_stock": 500000,
+        "max_stocks": 5,
+        "min_budget_per_stock": 100000,
+        "take_profit_pct": 2.0,
+        "stop_loss_pct": -2.0,
+        "max_daily_loss_pct": -5.0,
+        "partial_profit_ratio": 0.5
+    },
+    "market": {
+        "start_time": "090000",
+        "end_time": "153000",
+        "condition_schedule": {
+            "090500": 0,
+            "103000": 1,
+            "133000": 2
+        }
+    },
+    "notification": {
+        "enable_telegram": false,
+        "enable_email": false,
+        "critical_alerts": [
+            "trade_error",
+            "connection_lost"
+        ]
+    },
+    "monitoring": {
+        "enable_api_server": false,
+        "host": "127.0.0.1",
+        "port": 8080,
+        "enable_auth": true
+    }
+}
