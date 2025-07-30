@@ -1,6 +1,6 @@
 is_paper_trading = True  # 모의투자 여부: False 또는 True
-api_key = "VMbARSlQb4f4AyKjoEkbettQlBWW3dPkzyrp1-DMsGY"  # API KEY
-api_secret_key = "djEpkavpWJ3G4pSTrQ19JT2dPQFDtsG8uo2T-H90A0Y"  # API SECRET KEY
+api_key = "API_KEY"  # API KEY
+api_secret_key = "SECRET_KEY"  # API SECRET KEY
 
 host = "https://mockapi.kiwoom.com" if is_paper_trading else "https://api.kiwoom.com"
 websocket_url = "wss://mockapi.kiwoom.com:10000/api/dostk/websocket" if is_paper_trading else "wss://api.kiwoom.com:10000/api/dostk/websocket"
@@ -25,8 +25,8 @@ LOGGING_CONFIG = {
 # 텔레그램 알림 설정
 TELEGRAM_CONFIG = {
     "enabled": True,  # 텔레그램 알림 활성화
-    "bot_token": "6897559472:AAFW2JVaBTl-c6zdKnrZOy_m5z1IaLetdpM",  # 봇 토큰 (BotFather에서 발급)
-    "chat_id": "6946845911",  # 채팅 ID (개인 또는 그룹)
+    "bot_token": "",  # 봇 토큰 (BotFather에서 발급)
+    "chat_id": "",  # 채팅 ID (개인 또는 그룹)
 
     # 알림 활성화 설정
     "alert_levels": {
