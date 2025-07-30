@@ -5,14 +5,7 @@ import sys
 import datetime
 from multiprocessing import Process, Queue
 
-# 로깅 시스템 임포트 (가장 먼저)
-from enhanced_logging import (logger, log_trading, log_tr_request, log_websocket,
-                              log_order, log_error, log_info, log_debug)
-
-# 텔레그램 알림 시스템 임포트
-from telegram_notifier import initialize_telegram_notifier, get_telegram_notifier, send_telegram_alert
-from config import TELEGRAM_CONFIG
-
+from loguru import logger
 import pandas as pd
 from PyQt5.QtCore import Qt, QSettings, QTimer, QAbstractTableModel, QTime
 from PyQt5.QtGui import QColor, QIcon, QFont
@@ -94,8 +87,6 @@ class KiwoomAPI(QMainWindow):
             websocket_result_queue=None,
     ):
         super().__init__()
-        log_info("KiwoomAPI 메인 클래스 초기화 시작")
-
         self.tr_req_queue = tr_req_queue
         self.tr_result_queue = tr_result_queue
         self.order_tr_req_queue = order_tr_req_queue
@@ -112,18 +103,10 @@ class KiwoomAPI(QMainWindow):
 
         try:
             self.realtime_tracking_df = pd.read_pickle("realtime_tracking_df.pkl")
-            log_info(f"실시간 트래킹 데이터 로드 성공: {len(self.realtime_tracking_df)}개 종목")
         except FileNotFoundError:
             self.realtime_tracking_df = pd.DataFrame(
-                columns=[
-                    "종목명", "현재가", "매입가", "수익률(%)",
-                    "트레일링 발동 여부", "트레일링 발동 후 고가",
-                    "매수주문여부", "매도주문여부",
-                    "매수조건식명", "매수조건식index",
-                    "매도조건식명", "매도사유"
-                ]
+                columns=["종목명", "현재가", "매입가", "수익률(%)", "트레일링 발동 여부", "트레일링 발동 후 고가", "매수주문여부", "매도주문여부"]
             )
-            log_info("새로운 실시간 트래킹 데이터프레임 생성")
 
         self.last_saved_realtime_tracking_df = self.realtime_tracking_df.copy(deep=True)
         self.stock_code_to_basic_info_dict = dict()
@@ -140,38 +123,8 @@ class KiwoomAPI(QMainWindow):
         self.init_ui()
         self.setup_timers()
         self.init_data()
-        self.init_telegram()
-
-        log_info("KiwoomAPI 메인 클래스 초기화 완료")
-
-    def init_telegram(self):
-        """텔레그램 알림 시스템 초기화"""
-        try:
-            if TELEGRAM_CONFIG.get('enabled', False):
-                bot_token = TELEGRAM_CONFIG.get('bot_token')
-                chat_id = TELEGRAM_CONFIG.get('chat_id')
-
-                if bot_token and bot_token != "YOUR_BOT_TOKEN_HERE" and chat_id and chat_id != "YOUR_CHAT_ID_HERE":
-                    self.telegram_notifier = initialize_telegram_notifier(bot_token, chat_id, TELEGRAM_CONFIG)
-
-                    # 연결 테스트
-                    if self.telegram_notifier.test_connection():
-                        log_info("텔레그램 알림 시스템 초기화 및 연결 테스트 성공")
-                    else:
-                        log_error("텔레그램 연결 테스트 실패")
-                        self.telegram_notifier = None
-                else:
-                    log_info("텔레그램 봇 토큰 또는 채팅 ID가 설정되지 않음")
-                    self.telegram_notifier = None
-            else:
-                log_info("텔레그램 알림이 비활성화됨")
-                self.telegram_notifier = None
-        except Exception as e:
-            log_error(f"텔레그램 알림 시스템 초기화 실패: {str(e)}")
-            self.telegram_notifier = None
 
     def init_ui(self):
-        log_info("UI 초기화 시작")
         self.setWindowTitle("키움증권 자동매매 프로그램")
         self.setMinimumSize(1200, 800)
         self.resize(1400, 900)
@@ -209,8 +162,6 @@ class KiwoomAPI(QMainWindow):
         main_layout.setStretchFactor(control_panel, 0)
         main_layout.setStretchFactor(settings_splitter, 0)
         main_layout.setStretchFactor(table_widget, 1)
-
-        log_info("UI 초기화 완료")
 
     def create_control_panel(self):
         group = QGroupBox("제어 패널")
@@ -429,7 +380,6 @@ class KiwoomAPI(QMainWindow):
         return tab_widget
 
     def setup_timers(self):
-        log_info("타이머 설정 시작")
         self.timer1 = QTimer()
         self.timer1.timeout.connect(self.receive_websocket_result)
         self.timer1.start(10)
@@ -453,28 +403,19 @@ class KiwoomAPI(QMainWindow):
         self.timer6 = QTimer()
         self.timer6.timeout.connect(self.check_valid_time)
 
-        log_info("타이머 설정 완료")
-
     def init_data(self):
-        log_info("데이터 초기화 시작")
         self.init_time()
         self.load_settings()
 
         self.websocket_req_queue.put(dict(action_id="조건검색식리스트"))
         self.tr_req_queue.put(dict(action_id="계좌조회"))
 
-        log_info("데이터 초기화 완료")
-
     # 기존 메서드들은 그대로 유지
     @log_exceptions
     def check_valid_time(self):
         if not (self.market_start_time <= datetime.datetime.now() <= self.market_end_time):
-            if not self.is_no_transaction:
-                log_trading("장시간 종료 - 거래 비활성화")
             self.is_no_transaction = True
         else:
-            if self.is_no_transaction:
-                log_trading("장시간 시작 - 거래 활성화")
             self.is_no_transaction = False
 
     def check_amend_orders(self):
@@ -493,7 +434,7 @@ class KiwoomAPI(QMainWindow):
                     continue
                 basic_info_dict = self.stock_code_to_basic_info_dict.get(종목코드, None)
                 if basic_info_dict is None:
-                    log_debug(f"종목코드: {종목코드} 기본정보 부재!")
+                    logger.info(f"종목코드: {종목코드} 기본정보 부재!")
                     continue
                 order_time = datetime.datetime.now().replace(
                     hour=int(주문접수시간[:-4]),
@@ -501,13 +442,13 @@ class KiwoomAPI(QMainWindow):
                     second=int(주문접수시간[-2:]),
                 )
                 if now_time > order_time and (now_time - order_time).seconds > self.amendOrderSpinBox.value():
-                    log_order(f"미체결 정정주문 발생 - 종목: {종목코드}, 주문번호: {order_num}, 미체결시간: {(now_time - order_time).seconds}초")
+                    logger.debug(f"종목코드: {종목코드}, 주문번호: {order_num} 정정 주문 진행!")
                     if 매수매도구분 == "매수":
                         주문가격 = basic_info_dict["상한가"]
                     elif 매수매도구분 == "매도":
                         주문가격 = basic_info_dict["하한가"]
                     else:
-                        log_debug(f"매수매도구분: {매수매도구분} continue!")
+                        logger.info(f"매수매도구분: {매수매도구분} continue!")
                         continue
                     self.order_info_df.drop(order_num, inplace=True)
                     self.order_tr_req_queue.put(
@@ -521,7 +462,7 @@ class KiwoomAPI(QMainWindow):
                     )
                     self.amend_ordered_num_set.add(order_num)
             except Exception as e:
-                log_error(f"미체결 주문 확인 중 에러: {str(e)}", exception=True)
+                logger.exception(e)
         self.timer5.start(1000)
 
     def save_pickle(self):
@@ -531,19 +472,16 @@ class KiwoomAPI(QMainWindow):
             if not are_equal:
                 self.realtime_tracking_df.to_pickle("realtime_tracking_df.pkl")
                 self.last_saved_realtime_tracking_df = self.realtime_tracking_df.copy(deep=True)
-                log_debug("실시간 트래킹 데이터 저장 완료")
+                logger.info("Saved df!")
         except Exception as e:
-            log_error(f"데이터 저장 중 에러: {str(e)}", exception=True)
+            logger.exception(e)
         self.timer4.start(5000)
 
     @log_exceptions
     def pop_btn_clicked(self):
         target_code = self.popStockCodeLineEdit.text().replace(" ", "")
-        if target_code in self.realtime_tracking_df.index:
-            self.realtime_tracking_df.drop(target_code, inplace=True)
-            log_trading(f"종목 수동 편출: {target_code}")
-        else:
-            log_debug(f"편출 대상 종목 없음: {target_code}")
+        self.realtime_tracking_df.drop(target_code, inplace=True)
+        logger.info(f"종목코드: {target_code} drop")
         self.update_pandas_models()
 
     def update_pandas_models(self):
@@ -557,41 +495,32 @@ class KiwoomAPI(QMainWindow):
             self.autoTradeInfoTableView.setModel(model2)
             self.autoTradeInfoTableView.resizeColumnsToContents()
         except Exception as e:
-            log_error(f"테이블 모델 업데이트 중 에러: {str(e)}", exception=True)
+            logger.exception(e)
         self.timer3.start(1000)
 
     @log_exceptions
     def auto_trade_on(self):
-        log_trading("자동매매 시작 요청")
         self.autoOnPushButton.setEnabled(False)
         self.autoOffPushButton.setEnabled(True)
-
-        buy_condition = self.buyConditionComboBox.currentText()
-        sell_condition = self.sellConditionComboBox.currentText()
-
         self.websocket_req_queue.put(
             dict(
                 action_id="조건검색실시간등록",
-                조건index=self.condition_name_to_index_dict[buy_condition],
+                조건index=self.condition_name_to_index_dict[self.buyConditionComboBox.currentText()],
             )
         )
-        log_trading(f"매수 조건식 실시간 등록: {buy_condition}")
-
+        logger.info(f"조건명: {self.buyConditionComboBox.currentText()} 실시간 등록")
         self.websocket_req_queue.put(
             dict(
                 action_id="조건검색실시간등록",
-                조건index=self.condition_name_to_index_dict[sell_condition],
+                조건index=self.condition_name_to_index_dict[self.sellConditionComboBox.currentText()],
             )
         )
-        log_trading(f"매도 조건식 실시간 등록: {sell_condition}")
-
+        logger.info(f"조건명: {self.sellConditionComboBox.currentText()} 실시간 등록")
         self.is_no_transaction = False
         self.init_time()
         self.marketStartTimeEdit.setEnabled(False)
         self.marketEndTimeEdit.setEnabled(False)
         self.timer6.start(1000)
-
-        log_trading("자동매매 시작 완료")
 
     def init_time(self):
         market_start_time = self.marketStartTimeEdit.dateTime()
@@ -606,40 +535,29 @@ class KiwoomAPI(QMainWindow):
             minute=market_end_time.time().minute(),
             second=market_end_time.time().second(),
         )
-        log_info(
-            f"거래시간 설정: {self.market_start_time.strftime('%H:%M:%S')} ~ {self.market_end_time.strftime('%H:%M:%S')}")
 
     @log_exceptions
     def auto_trade_off(self):
-        log_trading("자동매매 종료 요청")
         self.autoOnPushButton.setEnabled(True)
         self.autoOffPushButton.setEnabled(False)
-
-        buy_condition = self.buyConditionComboBox.currentText()
-        sell_condition = self.sellConditionComboBox.currentText()
-
         self.websocket_req_queue.put(
             dict(
                 action_id="조건검색실시간해제",
-                조건index=self.condition_name_to_index_dict[buy_condition],
+                조건index=self.condition_name_to_index_dict[self.buyConditionComboBox.currentText()],
             )
         )
-        log_trading(f"매수 조건식 실시간 해제: {buy_condition}")
-
+        logger.info(f"조건명: {self.buyConditionComboBox.currentText()} 실시간 등록 해제")
         self.websocket_req_queue.put(
             dict(
                 action_id="조건검색실시간해제",
-                조건index=self.condition_name_to_index_dict[sell_condition],
+                조건index=self.condition_name_to_index_dict[self.sellConditionComboBox.currentText()],
             )
         )
-        log_trading(f"매도 조건식 실시간 해제: {sell_condition}")
-
+        logger.info(f"조건명: {self.sellConditionComboBox.currentText()} 실시간 등록 해제")
         self.is_no_transaction = True
         self.marketStartTimeEdit.setEnabled(True)
         self.marketEndTimeEdit.setEnabled(True)
         self.timer6.stop()
-
-        log_trading("자동매매 종료 완료")
 
     def register_realtime_info(self, stock_code):
         if stock_code not in self.realtime_registered_codes_set:
@@ -651,20 +569,13 @@ class KiwoomAPI(QMainWindow):
                 )
             )
             self.current_realtime_count += 1
-            log_debug(f"실시간 등록: {stock_code} (현재 등록수: {self.current_realtime_count})")
 
     @log_exceptions
     def on_receive_account_info(self, data):
-        log_info("계좌정보 처리 시작")
         df = data['df']
-        account_info_dict = data['account_info_dict']
-
         if len(df) > 0:
             self.account_info_df = df[["종목코드", "종목명", "현재가", "매입가", "보유수량", "매매가능수량", "수익률(%)"]]
             self.account_info_df.set_index("종목코드", inplace=True)
-
-            log_trading(f"보유종목 현황 - 총 {len(self.account_info_df)}개 종목")
-
             for stock_code, row in self.account_info_df.iterrows():
                 self.register_realtime_info(stock_code)
                 if self.stock_code_to_basic_info_dict.get(stock_code) is None:
@@ -678,19 +589,13 @@ class KiwoomAPI(QMainWindow):
                     self.realtime_tracking_df.at[stock_code, "매입가"] = row["매입가"]
                     self.realtime_tracking_df.at[stock_code, "현재가"] = row["현재가"]
                     self.realtime_tracking_df.at[stock_code, "수익률(%)"] = row["수익률(%)"]
-
-            log_trading(
-                f"계좌 요약 - 총평가금액: {account_info_dict.get('총평가금액', 0):,}원, 총수익률: {account_info_dict.get('총수익률', 0):.2f}%")
-
         if not self.has_init:
             for stock_code, row in self.realtime_tracking_df.copy(deep=True).iterrows():
                 if stock_code not in self.account_info_df.index:
                     self.realtime_tracking_df.drop(stock_code, inplace=True)
-                    log_trading(f"미보유 종목 트래킹 해제: {stock_code}")
-
+                    logger.debug(f"종목코드: {stock_code}, 실시간 트래킹 리스트에서 drop!")
         self.update_pandas_models()
         self.has_init = True
-        log_info("계좌정보 처리 완료")
 
     def receive_tr_result(self):
         self.timer2.stop()
@@ -703,49 +608,25 @@ class KiwoomAPI(QMainWindow):
                     basic_info_dict = data['basic_info_dict']
                     종목코드 = data['종목코드']
                     self.stock_code_to_basic_info_dict[종목코드] = basic_info_dict
-
-                    log_debug(f"주식기본정보 수신: {basic_info_dict['종목명']}({종목코드})")
-
                     if 종목코드 in self.realtime_tracking_df.index and self.realtime_tracking_df.at[
                         종목코드, "매수주문여부"] == False:
-                        condition_name = self.realtime_tracking_df.at[종목코드, "매수조건식명"]
-                        log_trading(f"매수주문 진행: {basic_info_dict['종목명']}({종목코드}) - {condition_name}")
-
+                        logger.info(f"종목코드: {종목코드} 매수주문 진행!")
                         현재가 = basic_info_dict["현재가"]
-                        종목명 = basic_info_dict["종목명"]
-                        self.realtime_tracking_df.at[종목코드, "종목명"] = 종목명
+                        self.realtime_tracking_df.at[종목코드, "종목명"] = basic_info_dict["종목명"]
                         self.realtime_tracking_df.at[종목코드, "현재가"] = 현재가
                         self.realtime_tracking_df.at[종목코드, "매수주문여부"] = True
-
                         시장가여부 = self.marketBuyRadioButton.isChecked()
                         주문가격 = ''
                         if not 시장가여부:
                             틱단위 = self.get_tick_size(현재가)
                             주문가격 = self.get_order_price(현재가 + self.limitBuySpinBox.value() * 틱단위)
-
                         주문금액 = int(self.buyAmountLineEdit.text().replace(",", ""))
                         주문수량 = int(주문금액 // 주문가격) if 주문가격 != '' else int(주문금액 // 현재가)
-
                         if 주문수량 <= 0:
-                            log_trading(f"매수주문 실패 - 주문수량 부족: {종목코드}, 수량: {주문수량}", level="WARNING")
+                            logger.debug(f"종목코드: {종목코드}, 주문수량: {주문수량}")
                             self.timer2.start(100)
                             return
-
-                        # 텔레그램 알림: 매수 조건 편입
-                        try:
-                            send_telegram_alert('buy_condition',
-                                                stock_code=종목코드,
-                                                stock_name=종목명,
-                                                condition_name=condition_name,
-                                                current_price=현재가,
-                                                buy_amount=주문금액,
-                                                expected_quantity=주문수량
-                                                )
-                        except Exception as e:
-                            log_error(f"텔레그램 매수 조건 알림 전송 실패: {str(e)}")
-
-                        log_trading(f"매수주문 상세 - 종목: {종목코드}, 현재가: {현재가:,}, 주문가격: {주문가격}, 주문수량: {주문수량:,}주")
-
+                        logger.debug(f"종목코드: {종목코드}, 현재가: {현재가}, 주문가격: {주문가격}")
                         self.order_tr_req_queue.put(
                             dict(
                                 action_id="매수주문",
@@ -758,7 +639,7 @@ class KiwoomAPI(QMainWindow):
                 elif data['action_id'] == "":
                     pass
         except Exception as e:
-            log_error(f"TR 결과 처리 중 에러: {str(e)}", exception=True)
+            logger.exception(e)
         self.timer2.start(100)
 
     @staticmethod
@@ -808,50 +689,14 @@ class KiwoomAPI(QMainWindow):
         주문및체결시간 = data['주문및체결시간']
         주문번호 = data['주문번호']
         주문구분 = data['주문구분']
-        주문가격 = data['주문가격']
 
         if 주문상태 == "접수" and 종목코드 in self.realtime_tracking_df.index:
             self.order_info_df.loc[주문번호] = {
                 "주문접수시간": 주문및체결시간, "종목코드": 종목코드, "주문수량": 주문수량, "매수매도구분": 주문구분,
             }
-            log_order(f"주문접수 - {종목명}({종목코드}), 주문번호: {주문번호}, 구분: {주문구분}")
-
-            # 텔레그램 알림: 주문 접수
-            if 종목코드 in self.realtime_tracking_df.index:
-                condition_name = self.realtime_tracking_df.at[종목코드, "매수조건식명"]
-                try:
-                    if 주문구분 in ("매수", "매수정정"):
-                        send_telegram_alert('buy_order',
-                                            stock_code=종목코드,
-                                            stock_name=종목명,
-                                            condition_name=condition_name,
-                                            order_price=주문가격 if 주문가격 else 0,
-                                            order_quantity=주문수량,
-                                            order_no=주문번호,
-                                            is_market_order=(주문가격 is None or 주문가격 == 0)
-                                            )
-                    elif 주문구분 in ("매도", "매도정정"):
-                        매도사유 = self.realtime_tracking_df.at[종목코드, "매도사유"] or "조건식"
-                        매입가 = self.realtime_tracking_df.at[종목코드, "매입가"] or 0
-                        현재가 = 주문가격 if 주문가격 else self.realtime_tracking_df.at[종목코드, "현재가"] or 0
-                        예상수익률 = ((현재가 - 매입가) / 매입가 * 100) if 매입가 > 0 else 0
-
-                        send_telegram_alert('sell_order',
-                                            stock_code=종목코드,
-                                            stock_name=종목명,
-                                            buy_condition=condition_name,
-                                            sell_reason=매도사유,
-                                            order_price=주문가격 if 주문가격 else 0,
-                                            order_quantity=주문수량,
-                                            order_no=주문번호,
-                                            expected_profit_rate=예상수익률,
-                                            is_market_order=(주문가격 is None or 주문가격 == 0)
-                                            )
-                except Exception as e:
-                    log_error(f"텔레그램 주문 접수 알림 전송 실패: {str(e)}")
 
         if 주문상태 == "체결" and 미체결수량 == 0 and 주문번호 in self.order_info_df.index:
-            log_order(f"주문체결완료 - 주문번호: {주문번호}")
+            logger.debug(f"주문번호: {주문번호} 체결완료!")
             self.order_info_df.drop(주문번호, inplace=True)
 
         if 주문상태 == "체결" and data['주문구분'] in ("매수", "매수정정"):
@@ -862,27 +707,8 @@ class KiwoomAPI(QMainWindow):
                 self.account_info_df.at[종목코드, "보유수량"] = 보유수량 + 단위체결량
                 self.account_info_df.at[종목코드, "매매가능수량"] += 단위체결량
                 self.account_info_df.at[종목코드, "매입가"] = new_매입가
-
-                log_trading(f"매수체결 - {종목명}({종목코드}), 체결가: {단위체결가:,}, 체결량: {단위체결량:,}주, 평균단가: {new_매입가:,}")
-
                 if 종목코드 in self.realtime_tracking_df.index:
                     self.realtime_tracking_df.at[종목코드, "매입가"] = new_매입가
-                    condition_name = self.realtime_tracking_df.at[종목코드, "매수조건식명"]
-
-                    # 텔레그램 알림: 매수 체결 완료
-                    try:
-                        send_telegram_alert('buy_filled',
-                                            stock_code=종목코드,
-                                            stock_name=종목명,
-                                            condition_name=condition_name,
-                                            filled_price=단위체결가,
-                                            filled_quantity=단위체결량,
-                                            filled_amount=단위체결가 * 단위체결량,
-                                            avg_price=new_매입가
-                                            )
-                    except Exception as e:
-                        log_error(f"텔레그램 매수 체결 알림 전송 실패: {str(e)}")
-
             else:
                 self.account_info_df.loc[종목코드] = {
                     "종목명": 종목명,
@@ -892,55 +718,19 @@ class KiwoomAPI(QMainWindow):
                     "매매가능수량": 단위체결량,
                     "수익률(%)": -self.transaction_cost,
                 }
-
-                log_trading(f"신규매수체결 - {종목명}({종목코드}), 체결가: {단위체결가:,}, 체결량: {단위체결량:,}주")
-
                 if 종목코드 in self.realtime_tracking_df.index:
                     self.realtime_tracking_df.at[종목코드, "매입가"] = 단위체결가
                     self.realtime_tracking_df.at[종목코드, "수익률(%)"] = -self.transaction_cost
-                    condition_name = self.realtime_tracking_df.at[종목코드, "매수조건식명"]
-
-                    # 텔레그램 알림: 신규 매수 체결 완료
-                    try:
-                        send_telegram_alert('buy_filled',
-                                            stock_code=종목코드,
-                                            stock_name=종목명,
-                                            condition_name=condition_name,
-                                            filled_price=단위체결가,
-                                            filled_quantity=단위체결량,
-                                            filled_amount=단위체결가 * 단위체결량,
-                                            avg_price=단위체결가
-                                            )
-                    except Exception as e:
-                        log_error(f"텔레그램 신규 매수 체결 알림 전송 실패: {str(e)}")
-
         elif 주문상태 == "체결" and data['주문구분'] in ("매도", "매도정정"):
             if 종목코드 in self.account_info_df.index:
                 self.account_info_df.at[종목코드, "보유수량"] -= 단위체결량
                 self.account_info_df.at[종목코드, "매매가능수량"] -= 단위체결량
                 보유수량 = self.account_info_df.at[종목코드, "보유수량"]
-
-                log_trading(f"매도체결 - {종목명}({종목코드}), 체결가: {단위체결가:,}, 체결량: {단위체결량:,}주, 잔여: {보유수량:,}주")
-
-                # 텔레그램 알림: 신규 매수 체결 완료
-                try:
-                    send_telegram_alert('buy_filled',
-                                        stock_code=종목코드,
-                                        stock_name=종목명,
-                                        condition_name=condition_name,
-                                        filled_price=단위체결가,
-                                        filled_quantity=단위체결량,
-                                        filled_amount=단위체결가 * 단위체결량,
-                                        avg_price=단위체결가
-                                        )
-                except Exception as e:
-                    log_error(f"텔레그램 신규 매수 체결 알림 전송 실패: {str(e)}")
-
                 if 보유수량 <= 0:
                     self.account_info_df.drop(종목코드, inplace=True)
                     if 종목코드 in self.realtime_tracking_df.index:
                         self.realtime_tracking_df.drop(종목코드, inplace=True)
-                        log_trading(f"매도완료 트래킹 해제: {종목명}({종목코드})")
+                        logger.info(f"종목코드: {종목코드} 트래킹 리스트에서 drop!")
                         self.websocket_req_queue.put(
                             dict(
                                 action_id="실시간해제",
@@ -958,7 +748,7 @@ class KiwoomAPI(QMainWindow):
         self.buyConditionComboBox.addItems(self.condition_df["조건명"])
         self.sellConditionComboBox.addItems(self.condition_df["조건명"])
         self.load_settings(is_init=False)
-        log_info(f"조건검색식 리스트 로드 완료: {len(self.condition_df)}개")
+        logger.info("조건검색식리스트 가져오기 성공!")
 
     @log_exceptions
     def on_receive_realtime_condition_event(self, data):
@@ -975,10 +765,7 @@ class KiwoomAPI(QMainWindow):
             종목코드 not in self.account_info_df.index,
             종목코드 not in self.realtime_tracking_df.index,
         ]):
-            buy_condition_name = self.condition_index_to_name_dict.get(조건식idx, f"조건식{조건식idx}")
-            log_trading(f"매수 조건식 편입: {종목코드} - {buy_condition_name}")
-
-            # 기본 정보 요청
+            logger.debug(f"종목코드: {종목코드} 실시간등록 / 주식기본정보 요청 진행")
             self.register_realtime_info(종목코드)
             self.tr_req_queue.put(
                 dict(
@@ -986,8 +773,6 @@ class KiwoomAPI(QMainWindow):
                     종목코드=종목코드,
                 )
             )
-
-            # 실시간 트래킹 데이터에 조건식 정보 포함하여 추가
             self.realtime_tracking_df.loc[종목코드] = {
                 "종목명": None,
                 "현재가": None,
@@ -997,10 +782,6 @@ class KiwoomAPI(QMainWindow):
                 "트레일링 발동 후 고가": None,
                 "매수주문여부": False,
                 "매도주문여부": False,
-                "매수조건식명": buy_condition_name,
-                "매수조건식index": 조건식idx,
-                "매도조건식명": None,
-                "매도사유": None
             }
 
         if all([
@@ -1010,51 +791,22 @@ class KiwoomAPI(QMainWindow):
             편입편출 == "I",
             not self.is_no_transaction,
         ]):
-            sell_condition_name = self.condition_index_to_name_dict.get(조건식idx, f"조건식{조건식idx}")
-            buy_condition_name = self.realtime_tracking_df.at[종목코드, "매수조건식명"]
-            종목명 = self.realtime_tracking_df.at[종목코드, "종목명"] or 종목코드
-            현재가 = self.realtime_tracking_df.at[종목코드, "현재가"] or 0
-            수익률 = self.realtime_tracking_df.at[종목코드, "수익률(%)"] or 0
-
-            # 매도 조건식 정보 업데이트
-            self.realtime_tracking_df.at[종목코드, "매도조건식명"] = sell_condition_name
-            self.realtime_tracking_df.at[종목코드, "매도사유"] = "조건식"
-
-            log_trading(f"매도 조건식 편입 - 조건부 매도: {종목명}({종목코드}) - {sell_condition_name}")
-
-            # 텔레그램 알림: 매도 조건 발동
-            try:
-                send_telegram_alert('sell_condition',
-                                    stock_code=종목코드,
-                                    stock_name=종목명,
-                                    buy_condition=buy_condition_name,
-                                    sell_condition=sell_condition_name,
-                                    current_price=현재가,
-                                    profit_rate=수익률
-                                    )
-            except Exception as e:
-                log_error(f"텔레그램 매도 조건 알림 전송 실패: {str(e)}")
-
+            logger.info(f"종목코드: {종목코드} 조건식 기반 매도!")
             self.sell_order(종목코드)
 
     def sell_order(self, 종목코드):
         if 종목코드 not in self.account_info_df.index:
-            log_trading(f"매도주문 실패 - 미보유 종목: {종목코드}", level="WARNING")
+            logger.info(f"종목코드: {종목코드} is not in account info!")
             return
-
         self.realtime_tracking_df.at[종목코드, "매도주문여부"] = True
-        종목명 = self.account_info_df.at[종목코드, "종목명"]
+        logger.debug(f"종목코드: {종목코드} 매도 진행")
         시장가여부 = self.marketSellRadioButton.isChecked()
         주문가격 = ''
         주문수량 = self.account_info_df.at[종목코드, "매매가능수량"]
         현재가 = self.account_info_df.at[종목코드, "현재가"]
-
         if not 시장가여부:
             틱단위 = self.get_tick_size(현재가)
             주문가격 = self.get_order_price(현재가 + self.limitSellSpinBox.value() * 틱단위)
-
-        log_trading(f"매도주문 진행 - {종목명}({종목코드}), 현재가: {현재가:,}, 주문수량: {주문수량:,}주, 시장가: {시장가여부}")
-
         self.order_tr_req_queue.put(
             dict(
                 action_id="매도주문",
@@ -1079,82 +831,33 @@ class KiwoomAPI(QMainWindow):
     def on_realtime_tracking_df_update(self, 종목코드, 현재가, 수익률):
         self.realtime_tracking_df.at[종목코드, "현재가"] = 현재가
         self.realtime_tracking_df.at[종목코드, "수익률(%)"] = 수익률
-
         if self.is_no_transaction:
             return
-
         매도주문여부 = self.realtime_tracking_df.at[종목코드, "매도주문여부"]
         트레일링발동여부 = self.realtime_tracking_df.at[종목코드, "트레일링 발동 여부"]
         트레일링발동후고가 = self.realtime_tracking_df.at[종목코드, "트레일링 발동 후 고가"]
-        종목명 = self.realtime_tracking_df.at[종목코드, "종목명"] or 종목코드
-
         if 트레일링발동여부 and not pd.isnull(트레일링발동후고가):
             트레일링발동후고가 = max(트레일링발동후고가, 현재가)
             self.realtime_tracking_df.at[종목코드, "트레일링 발동 후 고가"] = 트레일링발동후고가
-
-        # 손절 조건 확인
         if 매도주문여부 == False and self.stopLossCheckBox.isChecked() and 수익률 < self.stopLossDoubleSpinBox.value():
-            buy_condition_name = self.realtime_tracking_df.at[종목코드, "매수조건식명"]
-            self.realtime_tracking_df.at[종목코드, "매도사유"] = "손절"
-
-            log_trading(f"손절 발동 - {종목명}({종목코드}), 수익률: {수익률:.2f}% < {self.stopLossDoubleSpinBox.value()}%")
-
-            # 텔레그램 알림: 손절 발동
-            try:
-                send_telegram_alert('stop_loss',
-                                    stock_code=종목코드,
-                                    stock_name=종목명,
-                                    buy_condition=buy_condition_name,
-                                    current_price=현재가,
-                                    profit_rate=수익률,
-                                    stop_loss_rate=self.stopLossDoubleSpinBox.value()
-                                    )
-            except Exception as e:
-                log_error(f"텔레그램 손절 알림 전송 실패: {str(e)}")
-
+            logger.info(f"종목코드: {종목코드} 수익률: {수익률: .4f} < {self.stopLossDoubleSpinBox.value()}으로 스탑로스 발동!")
             self.sell_order(종목코드)
-
-        # 트레일링 스탑 발동 조건
         if all([
             트레일링발동여부 == False,
             매도주문여부 == False,
             self.trailingStopCheckBox.isChecked(),
             수익률 >= self.trailingStopDoubleSpinBox1.value(),
         ]):
-            buy_condition_name = self.realtime_tracking_df.at[종목코드, "매수조건식명"]
-
-            log_trading(f"트레일링 스탑 발동 - {종목명}({종목코드}), 수익률: {수익률:.2f}% >= {self.trailingStopDoubleSpinBox1.value()}%")
-
-            # 텔레그램 알림: 트레일링 스탑 발동
-            try:
-                send_telegram_alert('trailing_stop',
-                                    stock_code=종목코드,
-                                    stock_name=종목명,
-                                    buy_condition=buy_condition_name,
-                                    current_price=현재가,
-                                    profit_rate=수익률,
-                                    trailing_rate=self.trailingStopDoubleSpinBox1.value(),
-                                    high_price=현재가
-                                    )
-            except Exception as e:
-                log_error(f"텔레그램 트레일링 스탑 알림 전송 실패: {str(e)}")
-
+            logger.info(f"종목코드: {종목코드} 수익률: {수익률: .4f} >= {self.trailingStopDoubleSpinBox1.value()}으로 트레일링 스탑 발동!")
             self.realtime_tracking_df.at[종목코드, "트레일링 발동 후 고가"] = 현재가
             self.realtime_tracking_df.at[종목코드, "트레일링 발동 여부"] = True
 
-        # 트레일링 스탑 매도 조건
         if all([
             트레일링발동여부 == True,
             매도주문여부 == False,
             not pd.isnull(트레일링발동후고가) and (현재가 - 트레일링발동후고가) / 트레일링발동후고가 * 100 < self.trailingStopDoubleSpinBox2.value(),
         ]):
-            buy_condition_name = self.realtime_tracking_df.at[종목코드, "매수조건식명"]
-            self.realtime_tracking_df.at[종목코드, "매도사유"] = "트레일링"
-            하락률 = (현재가 - 트레일링발동후고가) / 트레일링발동후고가 * 100
-
-            log_trading(
-                f"트레일링 스탑 매도 - {종목명}({종목코드}), 고가대비 하락률: {하락률:.2f}% < {self.trailingStopDoubleSpinBox2.value()}%")
-
+            logger.info(f"종목코드: {종목코드} 고가대비 하락률(%): {(현재가 - 트레일링발동후고가) / 트레일링발동후고가 * 100: .4f}으로 트레일링 스탑 주문 발동!")
             self.sell_order(종목코드)
 
     def receive_websocket_result(self):
@@ -1171,12 +874,11 @@ class KiwoomAPI(QMainWindow):
                 elif data['action_id'] == "주문접수및체결":
                     self.on_receive_order_result(data)
         except Exception as e:
-            log_error(f"웹소켓 결과 처리 중 에러: {str(e)}", exception=True)
+            logger.exception(e)
         self.timer1.start(10)
 
     @log_exceptions
     def load_settings(self, is_init=True):
-        log_info("설정 로드 시작")
         self.buyAmountLineEdit.setText(self.settings.value('buyAmountLineEdit', defaultValue="200,000", type=str))
         self.marketBuyRadioButton.setChecked(self.settings.value('marketBuyRadioButton', defaultValue=True, type=bool))
         self.limitBuyRadioButton.setChecked(self.settings.value('limitBuyRadioButton', defaultValue=False, type=bool))
@@ -1198,11 +900,9 @@ class KiwoomAPI(QMainWindow):
         self.marketStartTimeEdit.setTime(
             QTime.fromString(self.settings.value('marketStartTimeEdit', "090000"), "HHmmss"))
         self.marketEndTimeEdit.setTime(QTime.fromString(self.settings.value('marketEndTimeEdit', "153000"), "HHmmss"))
-        log_info("설정 로드 완료")
 
     @log_exceptions
     def save_settings(self):
-        log_info("설정 저장 시작")
         self.settings.setValue('buyAmountLineEdit', self.buyAmountLineEdit.text())
         self.settings.setValue('buyConditionComboBox', self.buyConditionComboBox.currentIndex())
         self.settings.setValue('sellConditionComboBox', self.sellConditionComboBox.currentIndex())
@@ -1221,14 +921,13 @@ class KiwoomAPI(QMainWindow):
         self.settings.setValue("maxAutoTradeCountSpinBox", self.maxAutoTradeCountSpinBox.value())
         self.settings.setValue('marketStartTimeEdit', self.marketStartTimeEdit.time().toString("HHmmss"))
         self.settings.setValue('marketEndTimeEdit', self.marketEndTimeEdit.time().toString("HHmmss"))
-        log_info("설정 저장 완료")
 
 
 sys._excepthook = sys.excepthook
 
 
 def my_exception_hook(exctype, value, traceback):
-    log_error(f"시스템 예외 발생 - exctype: {exctype}, value: {value}, traceback: {traceback}")
+    logger.debug(f"exctype: {exctype}, value: {value}, traceback: {traceback}")
     sys._excepthook(exctype, value, traceback)
     sys.exit(1)
 
@@ -1236,15 +935,12 @@ def my_exception_hook(exctype, value, traceback):
 sys.excepthook = my_exception_hook
 
 if __name__ == "__main__":
-    log_info("프로그램 시작")
-
     tr_req_queue = Queue()
     tr_result_queue = Queue()
     order_tr_req_queue = Queue()
     websocket_req_queue = Queue()
     websocket_result_queue = Queue()
 
-    log_info("프로세스 시작")
     tr_gen_process = Process(
         target=tr_general_req_func,
         args=(tr_req_queue, tr_result_queue),
@@ -1265,8 +961,6 @@ if __name__ == "__main__":
     tr_order_process.start()
     tr_websocket_process.start()
 
-    log_info("모든 프로세스 시작 완료")
-
     app = QApplication(sys.argv)
     kiwoom_api = KiwoomAPI(
         tr_req_queue=tr_req_queue,
@@ -1276,19 +970,4 @@ if __name__ == "__main__":
         websocket_result_queue=websocket_result_queue,
     )
     kiwoom_api.show()
-
-    log_info("GUI 애플리케이션 시작")
-
-    try:
-        sys.exit(app.exec_())
-    except Exception as e:
-        log_error(f"애플리케이션 실행 중 에러: {str(e)}", exception=True)
-    finally:
-        # 텔레그램 알림 시스템 종료
-        try:
-            notifier = get_telegram_notifier()
-            if notifier:
-                notifier.stop()
-                log_info("텔레그램 알림 시스템 종료 완료")
-        except Exception as e:
-            log_error(f"텔레그램 시스템 종료 중 에러: {str(e)}")
+    sys.exit(app.exec_())
