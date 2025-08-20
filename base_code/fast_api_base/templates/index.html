@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/x-icon" href="/static/icon.ico">
+    <title>Auto Trader</title>
+
+    <!-- Tailwind via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- HTMX & SSE extension -->
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/sse.js"></script>
+
+    <style>
+      /* 테이블 공통 스타일 (모던 라이트 테마) */
+      .tbl {
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .tbl table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 0.9rem;
+        background-color: #ffffff;
+      }
+
+      .tbl thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: linear-gradient(to bottom, #f9fafb, #f3f4f6);
+        color: #334155;
+        text-align: left;
+        font-weight: 600;
+        letter-spacing: .01em;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #e2e8f0;
+      }
+
+      .tbl tbody tr {
+        transition: background-color 0.15s ease;
+      }
+
+      .tbl tbody tr:nth-child(odd) {
+        background: #fafafa;
+      }
+
+      .tbl tbody tr:hover {
+        background: #eef2ff; /* 살짝 보라톤 */
+      }
+
+      .tbl td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f1f5f9;
+        color: #475569;
+      }
+
+      .tbl table {
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      }
+
+      .tbl table thead th:first-child {
+        border-top-left-radius: 0.75rem;
+      }
+
+      .tbl table thead th:last-child  {
+        border-top-right-radius: 0.75rem;
+      }
+
+      .tbl .caption {
+        font-weight: 600;
+        margin-bottom: .5rem;
+        color: #1e293b;
+        font-size: 1rem;
+      }
+    </style>
+  </head>
+
+  <body class="min-h-screen bg-gray-50">
+    <div class="w-full mx-auto p-6" hx-ext="sse" sse-connect="/events">
+      <h1 class="text-2xl font-semibold mb-6">자동매매 대시보드</h1>
+
+      <!-- 통합: 자동매매 제어 + 설정 -->
+      <form id="settings_form"
+            class="rounded-2xl border border-gray-200 shadow-sm bg-white p-6 mb-6"
+            hx-post="/settings" hx-target="#toast" hx-swap="innerHTML">
+
+        <!-- 상단 바: 타이틀 + ON/OFF -->
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
+          <div class="text-lg font-semibold">설정 및 제어</div>
+          <div class="flex gap-2">
+            <!-- 기본은 OFF 강조(보라색), ON은 회색 -->
+            <button id="btn-on" type="button"
+              class="px-4 py-2 rounded-xl border text-sm font-medium transition hover:shadow bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+              hx-post="/action" hx-target="#toast" hx-swap="innerHTML"
+              hx-vals='{"action_id":"자동매매ON"}'
+            >자동매매 ON</button>
+
+            <button id="btn-off" type="button"
+              class="px-4 py-2 rounded-xl border text-sm font-medium transition hover:shadow bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+              hx-post="/action" hx-target="#toast" hx-swap="innerHTML"
+              hx-vals='{"action_id":"자동매매OFF"}'
+            >자동매매 OFF</button>
+          </div>
+        </div>
+
+        <!-- 입력 레이아웃: 넓게 1→2→3열 반응형 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          <div>
+            <label class="text-sm text-gray-600">매수금액</label>
+            <input id="buyAmountLineEdit" name="buyAmountLineEdit"
+                   class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                   placeholder="200,000" />
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">정정 대기(초)</label>
+            <input type="number" id="amendOrderSpinBox" name="amendOrderSpinBox"
+                   class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                   value="60" />
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">최대 자동매매 종목 수</label>
+            <input type="number" id="maxAutoTradeCountSpinBox" name="maxAutoTradeCountSpinBox"
+                   class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                   value="10" />
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">시장 시작(HHMMSS)</label>
+            <input id="marketStartTimeEdit" name="marketStartTimeEdit"
+                   class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                   value="090000" />
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">시장 종료(HHMMSS)</label>
+            <input id="marketEndTimeEdit" name="marketEndTimeEdit"
+                   class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                   value="153000" />
+          </div>
+
+          <div class="hidden xl:block"></div>
+
+          <!-- 매수/매도 영역 -->
+          <div class="md:col-span-2 xl:col-span-3 border-t pt-5">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <!-- 매수 -->
+              <div>
+                <div class="text-sm text-gray-600 mb-2">매수</div>
+                <div class="flex flex-wrap items-center gap-4">
+                  <!-- 라디오 그룹: buyOrderType -->
+                  <label class="flex items-center gap-2 whitespace-nowrap">
+                    <input type="radio" id="marketBuyRadioButton" name="buyOrderType" value="market" class="h-4 w-4" />
+                    시장가
+                  </label>
+                  <label class="flex items-center gap-2 whitespace-nowrap">
+                    <input type="radio" id="limitBuyRadioButton" name="buyOrderType" value="limit" class="h-4 w-4" />
+                    지정가
+                  </label>
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-600 whitespace-nowrap">지정가 +틱</span>
+                    <input type="number" id="limitBuySpinBox" name="limitBuySpinBox"
+                           class="w-32 px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                           value="0" />
+                  </div>
+
+                  <!-- 서버 호환용 hidden (매수) -->
+                  <input type="hidden" id="marketBuyHidden" name="marketBuyRadioButton" value="" />
+                  <input type="hidden" id="limitBuyHidden"  name="limitBuyRadioButton" value="" />
+                </div>
+              </div>
+
+              <!-- 매도 -->
+              <div>
+                <div class="text-sm text-gray-600 mb-2">매도</div>
+                <div class="flex flex-wrap items-center gap-4">
+                  <!-- 라디오 그룹: sellOrderType -->
+                  <label class="flex items-center gap-2 whitespace-nowrap">
+                    <input type="radio" id="marketSellRadioButton" name="sellOrderType" value="market" class="h-4 w-4" checked />
+                    시장가
+                  </label>
+                  <label class="flex items-center gap-2 whitespace-nowrap">
+                    <input type="radio" id="limitSellRadioButton" name="sellOrderType" value="limit" class="h-4 w-4" />
+                    지정가
+                  </label>
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-600 whitespace-nowrap">지정가 +틱</span>
+                    <input type="number" id="limitSellSpinBox" name="limitSellSpinBox"
+                           class="w-32 px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                           value="0" />
+                  </div>
+
+                  <!-- 서버 호환용 hidden (매도) -->
+                  <input type="hidden" id="marketSellHidden" name="marketSellRadioButton" value="on" />
+                  <input type="hidden" id="limitSellHidden"  name="limitSellRadioButton" value="" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 체크/숫자 묶음 -->
+          <div class="md:col-span-2 xl:col-span-3 border-t pt-5">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <label class="flex items-center gap-2">
+                <input type="checkbox" id="stopLossCheckBox" name="stopLossCheckBox" class="h-4 w-4" checked />
+                손절 사용
+              </label>
+              <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-600 whitespace-nowrap">손절(%)</span>
+                <input type="number" step="0.1" id="stopLossDoubleSpinBox" name="stopLossDoubleSpinBox"
+                       class="w-32 px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                       value="-2.0" />
+              </div>
+              <label class="flex items-center gap-2">
+                <input type="checkbox" id="trailingStopCheckBox" name="trailingStopCheckBox" class="h-4 w-4" checked />
+                트레일링 사용
+              </label>
+              <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-600 whitespace-nowrap">트레일링 발동(%)</span>
+                <input type="number" step="0.1" id="trailingStopDoubleSpinBox1" name="trailingStopDoubleSpinBox1"
+                       class="w-32 px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                       value="2.0" />
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-600 whitespace-nowrap">발동 후 하락폭(%)</span>
+                <input type="number" step="0.1" id="trailingStopDoubleSpinBox2" name="trailingStopDoubleSpinBox2"
+                       class="w-32 px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                       value="-1.0" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 조건식 -->
+          <div class="md:col-span-2 xl:col-span-3 border-t pt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="text-sm text-gray-600">매수 조건식</label>
+              <select id="buyConditionComboBox" name="buyConditionComboBox"
+                      class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="0">로딩중…</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-sm text-gray-600">매도 조건식</label>
+              <select id="sellConditionComboBox" name="sellConditionComboBox"
+                      class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="0">로딩중…</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 하단: POP + 설정 변경 -->
+        <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <div class="flex gap-2">
+            <input id="pop_code" name="stock_code"
+                   class="w-48 px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                   placeholder="POP 종목코드" />
+            <button
+              type="button"
+              class="px-4 py-2 rounded-xl border text-sm font-medium transition hover:shadow bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+              hx-post="/action" hx-target="#toast" hx-swap="innerHTML"
+              hx-include="#pop_code"
+              hx-vals='{"action_id":"POP"}'
+            >POP</button>
+          </div>
+
+          <button class="px-4 py-2 rounded-xl border text-sm font-medium transition hover:shadow bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+                  type="submit">설정 변경</button>
+        </div>
+
+        <!-- settings_loaded 이벤트 앵커 -->
+        <div sse-swap="settings_loaded" class="hidden"></div>
+      </form>
+
+      <!-- 데이터 패널 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div id="account_info_panel" class="rounded-2xl border border-gray-200 shadow-sm bg-white p-5 min-h-[240px]">
+          <div class="caption">계좌정보</div>
+          <div class="tbl">로딩중…</div>
+        </div>
+
+        <div id="realtime_panel" class="rounded-2xl border border-gray-200 shadow-sm bg-white p-5 min-h-[240px]">
+          <div class="caption">자동매매 현황</div>
+          <div class="tbl">로딩중…</div>
+        </div>
+      </div>
+
+      <!-- 토스트(하단 고정) -->
+      <div id="toast" class="fixed bottom-6 right-6 z-50"></div>
+
+      <!-- SSE 스왑 포인트 -->
+      <div sse-swap="update_pandas_models" class="hidden"></div>
+      <div sse-swap="on_receive_condition_list" class="hidden"></div>
+      <div id="__settings_inject__" class="hidden"></div> <!-- <= 추가 -->
+    </div>
+
+    <!-- 인터랙션 스크립트 -->
+    <script>
+      // 버튼 스타일 토글 도우미
+      function setButtonActive(el, active) {
+        const activeCls = ["bg-indigo-600","text-white","border-indigo-600","hover:bg-indigo-700"];
+        const idleCls   = ["bg-gray-50","text-gray-700","border-gray-200","hover:bg-gray-100"];
+        const all = [...activeCls, ...idleCls];
+        el.classList.remove(...all);
+        if (active) el.classList.add(...activeCls, "px-4","py-2","rounded-xl","border","text-sm","font-medium","transition","hover:shadow");
+        else        el.classList.add(...idleCls,   "px-4","py-2","rounded-xl","border","text-sm","font-medium","transition","hover:shadow");
+      }
+
+      // ON/OFF 클릭 시 색상 전환
+      const btnOn  = document.getElementById("btn-on");
+      const btnOff = document.getElementById("btn-off");
+      if (btnOn && btnOff) {
+        btnOn.addEventListener("click", () => { setButtonActive(btnOn, true); setButtonActive(btnOff, false); });
+        btnOff.addEventListener("click", () => { setButtonActive(btnOn, false); setButtonActive(btnOff, true); });
+      }
+
+      // 라디오 → hidden 동기화
+      function syncBuyHidden() {
+        const market = document.getElementById("marketBuyRadioButton").checked;
+        document.getElementById("marketBuyHidden").value = market ? "on" : "";
+        document.getElementById("limitBuyHidden").value  = market ? "" : "on";
+      }
+      function syncSellHidden() {
+        const market = document.getElementById("marketSellRadioButton").checked;
+        document.getElementById("marketSellHidden").value = market ? "on" : "";
+        document.getElementById("limitSellHidden").value  = market ? "" : "on";
+      }
+
+      // 초기/변경 시 동기화
+      ["marketBuyRadioButton","limitBuyRadioButton"].forEach(id=>{
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("change", syncBuyHidden);
+      });
+      ["marketSellRadioButton","limitSellRadioButton"].forEach(id=>{
+        const el = document.getElementById(id);
+        if (el) el.addEventListener("change", syncSellHidden);
+      });
+
+      // 페이지 로드 후 1회 동기화
+      document.addEventListener("DOMContentLoaded", () => {
+        syncBuyHidden(); syncSellHidden();
+      });
+
+      // SSE로 settings_loaded 후에도 재동기화 (HTMX settle 시점)
+      document.body.addEventListener("htmx:afterSettle", (e) => {
+        // 폼 값이 스크립트로 주입되면 change 이벤트가 안날 수 있으니 강제 동기화
+        syncBuyHidden();
+        syncSellHidden();
+      });
+    </script>
+  </body>
+</html>
